@@ -1,4 +1,4 @@
-# BioRepulsiveSurfaces
+# Repulsive Biomembranes
 <img src="img.jpg" alt="Alt Text" width="1000"/>
 
 An extension to [Repulsive Surfaces](https://dl.acm.org/doi/abs/10.1145/3478513.3480521) originally developed by [Keenan Crane Lab](https://www.cs.cmu.edu/~kmcrane/) to minimize the energy of biomembranes using bilayer-couple and area difference elasticity models.
