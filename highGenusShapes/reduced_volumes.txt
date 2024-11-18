@@ -1,0 +1,10 @@
+Here are the reduced volumes for various genus shapes:
+
+Genus-1     0.491
+Genus-2     0.381
+Genus-3     0.317
+Genus-4     0.283
+Genus-5     0.257
+Genus-6     0.234
+Genus-7     0.219
+Genus-8     0.207
