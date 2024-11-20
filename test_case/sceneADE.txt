@@ -1,0 +1,6 @@
+repel_mesh 0.75_1.05.obj 6 12 
+constrain barycenter
+constrain volume 1 
+constrain reduced_volume 1
+minimize helfrichADE 1
+iteration_limit 400
