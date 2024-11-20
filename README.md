@@ -47,6 +47,20 @@ After successfully building the project, you can run the application using the f
 ```
 Replace `path/to/scene.txt` with the path to your input scene file.
 
+A test case is added for easier modeling of bilayer couple (BC) and area-difference elasticity (ADE) models. Navigate to repulsive_biomembranes/test_case/ and make a symbolic link to the program executable here:
+
+```
+ln -s ../build/bin/biorsurfaces
+```
+Then, run the program with the below command:
+
+```
+./biorsurfaces scene.txt
+```
+Both "sceneADE.txt" and the mesh file with the name specified in the "sceneADE.txt" should be provided.
+ 
+In the opened GUI, select ADE or BC model from the right menu. Initially, start by making small changes to the default values or ADE model.
+
 ## Acknowledgments
 
 This project is forked from the following repositories:
