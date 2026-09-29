@@ -192,7 +192,9 @@ target_link_libraries(biorsurfaces geometry-central polyscope OpenMP::OpenMP_CXX
 
 
 if(MKL_FOUND)
-    target_link_libraries(biorsurfaces "-lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread -lm -ldl")
+    # Clang uses LLVM libomp; pair it with MKL's GNU threading layer rather than
+    # mkl_intel_thread (which expects Intel's iomp5 and libatomic symbols).
+    target_link_libraries(biorsurfaces "-lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core -lpthread -lm -ldl -latomic")
 endif()
 
 if(TBB_FOUND)

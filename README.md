@@ -5,6 +5,61 @@ An extension to [Repulsive Surfaces](https://dl.acm.org/doi/abs/10.1145/3478513.
 
 The main motivation is to model high surface-area-to-volume cases in which the energy minimization may result in self-intersection. The idea of tangent point energy and efficient optimization of energy helped us maintain shape without self-intersection even at low reduced volumes. Discrete differential geometry implementation of the bending energy is adopted based on the [Mem3DG package](https://github.com/RangamaniLabUCSD/Mem3DG). For more information on this implementation, please refer to the [Mem3DG paper](https://www.sciencedirect.com/science/article/pii/S2667074722000192).
 
+## Revision 00
+
+This branch is the working line for the revision of the paper that accompanies this repository. The manuscript was submitted, the reviews are back, and part of the response will be algorithmic variations that put more of the membrane physics into the model. Revision 00 does not change the bilayer-couple or area-difference elasticity formulation. It is a known-good build of the submitted code, including the fixes required to compile and run it on a Windows laptop, so later commits can change the physics against a simulator that already runs.
+
+### Code changes
+
+- **Clang marching-cubes grid.** In `MeshImplicitSurface`, the sample-grid size is now `const`. Clang 18 treats a runtime-sized `double field[...]` as a variable-length array and rejects it under `-Werror`. With `numCells` fixed at 50, the grid is an ordinary 51³ array.
+- **MKL link line for Clang.** The executable links `mkl_gnu_thread` and `libatomic` instead of `mkl_intel_thread`. Clang uses LLVM OpenMP; Intel's threading layer expects `iomp5` and fails at link time with unresolved `libatomic` symbols.
+
+The Linux install and Docker instructions below are unchanged.
+
+### Building on Windows
+
+The build system is Linux-specific (Clang, Intel oneAPI, Unix MKL link flags, OpenGL). On Windows, build inside **WSL2 Ubuntu 24.04** and show the Polyscope window through **WSLg**. Copy the source onto the Linux filesystem before compiling. A Dropbox or `/mnt/c` working tree is slow and can lock files during the build.
+
+Inside Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential clang cmake ninja-build pkg-config \
+  libomp-dev xorg-dev libglu1-mesa-dev libgl1-mesa-dev mesa-common-dev \
+  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+```
+
+Add Intel's APT repository and install the MKL and TBB development packages (`intel-oneapi-mkl-devel` and `intel-oneapi-tbb-devel`), then:
+
+```bash
+source /opt/intel/oneapi/setvars.sh --force
+export CC=clang
+export CXX=clang++
+cd ~/Repulsive_Biomembranes
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+cmake --build build
+```
+
+The binary is `build/bin/biorsurfaces`. From `test_case/`, run `../build/bin/biorsurfaces sceneADE.txt`. In the GUI, choose ADE or BC on the right and change the defaults only a little at first.
+
+### Launching the GUI from Windows
+
+`run_biorsurfaces.bat` starts that Linux binary without attaching it to a `cmd.exe` console. A console in Quick Edit / copy mode can freeze the GUI. The script assumes:
+
+- WSL distro `Ubuntu-24.04`
+- Linux user `khaled`
+- a built tree at `/home/khaled/Repulsive_Biomembranes`
+
+```bat
+run_biorsurfaces.bat
+run_biorsurfaces.bat sceneADE.txt
+```
+
+The window title is **Repulsive BioSurfaces**. If a blank window appears with `[WARN: COPY MODE]` in the title, WSLg's compositor started before a real display was attached. Run `wsl --shutdown`, open the distro once so Weston gets a monitor, then launch the batch file again. The process log is `\\wsl$\Ubuntu-24.04\tmp\biorsurfaces.log`.
+
+Edits in this folder are not what the batch file runs. Copy the changed sources into `~/Repulsive_Biomembranes` and rebuild there before the next launch.
+
 ## Installation
 
 ### Dependencies

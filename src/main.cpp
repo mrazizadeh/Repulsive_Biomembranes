@@ -712,7 +712,7 @@ namespace biorsurfaces
 
         Vector3 lowerCorner = center - Vector3{radius, radius, radius};
 
-        int numCorners = numCells + 1;
+        const int numCorners = numCells + 1;
 
         double field[numCorners * numCorners * numCorners];
 
