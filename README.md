@@ -5,9 +5,9 @@ An extension to [Repulsive Surfaces](https://dl.acm.org/doi/abs/10.1145/3478513.
 
 The main motivation is to model high surface-area-to-volume cases in which the energy minimization may result in self-intersection. The idea of tangent point energy and efficient optimization of energy helped us maintain shape without self-intersection even at low reduced volumes. Discrete differential geometry implementation of the bending energy is adopted based on the [Mem3DG package](https://github.com/RangamaniLabUCSD/Mem3DG). For more information on this implementation, please refer to the [Mem3DG paper](https://www.sciencedirect.com/science/article/pii/S2667074722000192).
 
-## Revision 00
+## Build notes
 
-This branch is the working line for the revision of the paper that accompanies this repository. The manuscript was submitted, the reviews are back, and part of the response will be algorithmic variations that put more of the membrane physics into the model. Revision 00 does not change the bilayer-couple or area-difference elasticity formulation. It is a known-good build of the submitted code, including the fixes required to compile and run it on a Windows laptop, so later commits can change the physics against a simulator that already runs.
+The bilayer-couple and area-difference elasticity models are unchanged. Two compiler fixes are required to build with Clang 18 and Intel oneAPI.
 
 ### Code changes
 
