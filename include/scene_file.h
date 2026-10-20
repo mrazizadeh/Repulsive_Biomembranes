@@ -85,6 +85,11 @@ namespace biorsurfaces
             std::string meshName;
             double alpha;
             double beta;
+            int netCDFWriteIndex = 1;
+            double reducedVolume = 0.7;
+            double weightHelfrich = 5000;
+            double reducedArea = 1.05;
+            double alphaADE = 2/geometrycentral::PI ;
             bool allowBarycenterShift = false;
             std::vector<ObstacleData> obstacles;
             std::vector<ConstraintData> constraints;

@@ -34,6 +34,7 @@ namespace biorsurfaces
         // Helfrich energy should add a bi-Laplacian term.
         virtual void AddMetricTerm(std::vector<MetricTerm*> &terms);
         virtual void ResetTargetsHelfrich(double newTargetValue,double newWeight, double newalpha);
+        double delaValue();
     private:
         Eigen::MatrixXd H;
         Eigen::VectorXd H_squared;

@@ -1,8 +1,3 @@
-// Note: The majority of these functions are derived from the mem3dg package.Mem3DG is developed by Cuncheng Zhu, Christopher T. Lee, with contributions from others. 
-// Development of Mem3DG is funded in part by AFOSR MURI FA9550-18-1-0051, and a Hartwell Foundation Postdoctoral Fellowship.
-// The original source code can be found at https://github.com/RangamaniLabUCSD/Mem3DG
-// The paper can be found at https://www.sciencedirect.com/science/article/pii/S2667074722000192
-
 #include "energy/helfrich_energy.h"
 #include "matrix_utils.h"
 #include <Eigen/Core>

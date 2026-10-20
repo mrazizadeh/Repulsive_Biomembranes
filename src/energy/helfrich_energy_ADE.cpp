@@ -1,34 +1,15 @@
-// Note: The majority of these functions are derived from the mem3dg package.Mem3DG is developed by Cuncheng Zhu, Christopher T. Lee, with contributions from others. 
-// Development of Mem3DG is funded in part by AFOSR MURI FA9550-18-1-0051, and a Hartwell Foundation Postdoctoral Fellowship.
-// The original source code can be found at https://github.com/RangamaniLabUCSD/Mem3DG
-// The paper can be found at https://www.sciencedirect.com/science/article/pii/S2667074722000192
-
 #include "energy/helfrich_energy_ADE.h"
 #include "matrix_utils.h"
 #include <Eigen/Core>
 
 namespace biorsurfaces
 {
-     /**
-     * @brief Computes the vector from a halfedge to its next vertex.
-     * 
-     * @param he The halfedge from which to compute the vector.
-     * @param vpg The vertex position geometry containing vertex positions.
-     * @return Vector3 The vector from the current vertex to the next vertex.
-     */
     inline Vector3 vecFromHalfedge(const GCHalfedge he, const geometrycentral::surface::VertexPositionGeometry &vpg)
     {
         return vpg.inputVertexPositions[he.next().vertex()] -
                vpg.inputVertexPositions[he.vertex()];
     }
-    /**
-     * @brief Computes the volume variation vector for a given halfedge.
-     * 
-     * @param vpg The vertex position geometry containing face normals and areas.
-     * @param he The halfedge for which to compute the volume variation vector.
-     * @return Vector3 The volume variation vector.
-     */
-    
+
     inline Vector3 computeHalfedgeVolumeVariationVector(geometrycentral::surface::VertexPositionGeometry &vpg, GCHalfedge he)
     {
         std::size_t fID = he.face().getIndex();
@@ -41,13 +22,6 @@ namespace biorsurfaces
         return volGrad;
     }
 
-    /**
-     * @brief Computes the mean curvature vector for a given halfedge.
-     * 
-     * @param vpg The vertex position geometry containing face normals.
-     * @param he The halfedge for which to compute the mean curvature vector.
-     * @return Vector3 The mean curvature vector.
-     */
     inline Vector3 computeHalfedgeMeanCurvatureVector(geometrycentral::surface::VertexPositionGeometry &vpg, GCHalfedge he)
     {
         std::size_t fID = he.face().getIndex();
@@ -65,13 +39,7 @@ namespace biorsurfaces
         }
         return areaGrad / 2;
     }
-    /**
-     * @brief Computes the Gaussian curvature vector for a given halfedge.
-     * 
-     * @param vpg The vertex position geometry containing edge dihedral angles.
-     * @param he The halfedge for which to compute the Gaussian curvature vector.
-     * @return Vector3 The Gaussian curvature vector.
-     */
+
     inline Vector3 computeHalfedgeGaussianCurvatureVector(geometrycentral::surface::VertexPositionGeometry &vpg, GCHalfedge he)
     {
         Vector3 gaussVec{0, 0, 0};
@@ -81,14 +49,7 @@ namespace biorsurfaces
         }
         return gaussVec;
     }
-    /**
-     * @brief Computes the gradient of the dihedral angle for a given halfedge and vertex.
-     * 
-     * @param geom The vertex position geometry containing edge lengths and face normals.
-     * @param he The halfedge for which to compute the gradient.
-     * @param v The vertex associated with the halfedge.
-     * @return Vector3 The gradient of the dihedral angle.
-     */
+
     inline Vector3 dihedralAngleGradient(geometrycentral::surface::VertexPositionGeometry &geom, GCHalfedge he, GCVertex v)
     {
         // std::cout <<"here arrived"<<std::endl;
@@ -125,13 +86,7 @@ namespace biorsurfaces
             return Vector3{0, 0, 0};
         }
     }
-    /**
-     * @brief Computes the gradient of the area for a given vertex.
-     * 
-     * @param vpg The vertex position geometry containing face normals.
-     * @param v The vertex for which to compute the area gradient.
-     * @return Vector3 The area gradient at the vertex.
-     */
+
     inline Vector3 computeGradAreaPointBased(geometrycentral::surface::VertexPositionGeometry &vpg, GCVertex &v)
     {
         Vector3 at_xm{0, 0, 0};
@@ -146,11 +101,7 @@ namespace biorsurfaces
         }
         return at_xm; // SHOULD HAVE 1/3.0 but it does not work with FD computations
     }
-    /**
-     * @brief Computes the value of the Helfrich energy.
-     * 
-     * @return double The computed Helfrich energy value.
-     */
+
     double HelfrichEnergyADE::Value()
     {
         geom->requireVertexDualAreas();
@@ -185,11 +136,7 @@ namespace biorsurfaces
         //double energy = 2 * kb * m2;
         return energy * weight;
     }
-    /**
-     * @brief Computes the differential of the Helfrich energy and stores it in the output matrix.
-     * 
-     * @param output The matrix to store the computed differential.
-     */
+
     void HelfrichEnergyADE::Differential(Eigen::MatrixXd &output)
     {
 
@@ -297,41 +244,32 @@ namespace biorsurfaces
         }
     } // Differential
 
-
-    /**
-     * @brief Gets the exponents of the Helfrich energy.
-     * 
-     * @return Vector2 The exponents of the energy.
-     */
+    // Get the exponents of this energy; only applies to tangent-point energies.
     Vector2 HelfrichEnergyADE::GetExponents()
     {
         return Vector2{1, 0};
     }
-    /**
-     * @brief Adds the bi-Laplacian metric term to the provided list of metric terms.
-     * 
-     * @param terms The vector to which the metric term will be added.
-     */
+
     void HelfrichEnergyADE::AddMetricTerm(std::vector<MetricTerm *> &terms)
     {
         std::cout << "  * Adding bi-Laplacian to metric for Helfrich energy" << std::endl;
         BiLaplacianMetricTerm *term = new BiLaplacianMetricTerm(mesh, geom);
         terms.push_back(term);
     }
-
-    /**
-     * @brief Resets the target values for the Helfrich energy.
-     * 
-     * @param newTargetValue The new target value for the reduced volume.
-     * @param newWeight The new weight for the energy.
-     * @param newalpha The new alpha parameter for the energy.
-     */
     void HelfrichEnergyADE::ResetTargetsHelfrich(double newTargetValue, double newWeight, double newalpha)
     {
-        // std::cout<<" Target value for the reduced volume is changed to: "<< newTargetValue<<std::endl;
+        std::cout<<"##################Target value for Reduced Area is:###############: "<< newTargetValue<<std::endl;
         targetValue = newTargetValue;
         weight = newWeight;
+        std::cout<<"##################Alpha for ADE is set to:###############: "<< newalpha<<std::endl;
         _alpha = newalpha;
+    }
+    double HelfrichEnergyADE::delaValue(){
+        double m0 = (geom->vertexDualAreas.raw().array()).sum();
+        double m1 = (geom->vertexMeanCurvatures.raw().array()).sum();
+        double radius = std::sqrt(m0/4/geometrycentral::PI);
+
+        return m1/2/geometrycentral::PI/radius;
     }
 
 } // namespace biorsurfaces

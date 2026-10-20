@@ -15,11 +15,8 @@ namespace biorsurfaces
         {
             volume = totalVolume(geom, mesh);
             area = totalArea(geom, mesh);
-                // std::cout<<"######Target Value is#########: "<<targetValue<<std::endl;
-                // double targetValue = 0.642;
-                initValue = pow(volume / targetValue, 2.0 / 3.0) * 4.83597586205;
-            // initValue = targetValue*totalArea(geom, mesh);
-            // std::cout<<"######Init Values is#########: "<<initValue<<std::endl;
+            //initValue = pow(volume / targetValue, 2.0 / 3.0) * 4.83597586205;
+            initValue = pow(volume / targetValue, 2.0 / 3.0) * pow(4*geometrycentral::PI, 1.0/3.0) * pow(3, 2.0/3.0);
         }
 
         size_t ReducedVolume::nRows()
@@ -69,10 +66,10 @@ namespace biorsurfaces
 
         void ReducedVolume::setTargetValue(double targetValue_)
         {
-            // std::cout<<"######Target Value is changed from #########: "<<targetValue<<std::endl;
 
             targetValue = targetValue_;
-            // std::cout<<"######TO: #########: "<<targetValue<<std::endl;
+            std::cout<< "########################target Value of Reduced Volume is:#################### "<< targetValue << std::endl;
+
         }
 
         void ReducedVolume::incrementTargetValue(double incr)

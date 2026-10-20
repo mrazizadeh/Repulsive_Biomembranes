@@ -65,8 +65,9 @@ endif()
 # == Deps
 
 add_subdirectory(deps/geometry-central)
+find_package(netCDF REQUIRED)
+find_package(netcdf-cxx4 REQUIRED)
 add_subdirectory(deps/polyscope)
-
 
 # == Build our project stuff
 
@@ -142,6 +143,7 @@ set(SRCS
   src/optimized_bct_types.cpp
   src/optimized_bct.cpp
   src/optimized_cluster_tree.cpp
+  src/iosystem.cpp
     # add any other source files here
 )
 
@@ -166,7 +168,7 @@ if(MKL_FOUND)
     message("Include directories: ${MKL_INCLUDE_DIR}")
     message("Intel library directories: ${MKL_LIBRARY_DIR}")
     include_directories(${MKL_INCLUDE_DIR})
-    add_compile_definitions(EIGEN_USE_MKL_ALL)
+    #  add_compile_definitions(EIGEN_USE_MKL_ALL)
     link_directories(${MKL_LIBRARY_DIR})
 else()
     message(WARNING "Intel MKL libraries not found")
@@ -184,12 +186,10 @@ endif()
 
 
 
+# To change the name of your executable, change "gc_project" in the lines below to whatever you want
 add_executable(biorsurfaces "${SRCS}" "${SRCS1}")
-
-
 target_include_directories(biorsurfaces PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-target_link_libraries(biorsurfaces geometry-central polyscope OpenMP::OpenMP_CXX)
-
+target_link_libraries(biorsurfaces geometry-central polyscope OpenMP::OpenMP_CXX NetCDF::NetCDF NetCDF::NetCDF-cxx4)
 
 if(MKL_FOUND)
     target_link_libraries(biorsurfaces "-lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread -lm -ldl")

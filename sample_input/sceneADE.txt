@@ -1,0 +1,14 @@
+repel_mesh oblate.obj 6 12 
+######### Values for reduced volume and reduced mean curvature ############
+reduced_volume 0.9
+reduced_area 1.05
+helfrich_weight 5000
+alpha_ade 1000
+write_index 10
+###########################################################################
+constrain barycenter
+constrain volume 1 
+constrain reduced_volume 1
+###### helfrichADE for adding ADE potential ####
+minimize helfrichADE 1
+iteration_limit 1000

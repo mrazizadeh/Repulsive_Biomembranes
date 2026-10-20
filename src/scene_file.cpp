@@ -247,6 +247,36 @@ namespace biorsurfaces
                 data.iterationLimit = stoi(parts[1]);
                 std::cout << "Adding iteration limit of " << data.iterationLimit << std::endl;
             }
+            else if (parts[0] == "reduced_volume")
+            {
+                data.reducedVolume = stod(parts[1]);
+                std::cout << "Target reduced volume is: " << data.reducedVolume << std::endl;
+            }
+
+            else if (parts[0] == "reduced_area")
+            {
+                data.reducedArea = stod(parts[1]);
+                std::cout << "Target reduced area is: " << data.reducedArea << std::endl;
+            }
+            else if (parts[0] == "alpha_ade")
+            {
+                data.alphaADE = stod(parts[1]);
+                std::cout << "Target reduced area is: " << data.alphaADE << std::endl;
+            }
+            else if (parts[0] == "helfrich_weight")
+            {
+                data.weightHelfrich = stod(parts[1]);
+                std::cout << "Helfrich Weight is: " << data.weightHelfrich << std::endl;
+            }
+
+            else if (parts[0] == "write_index")
+            {
+                data.netCDFWriteIndex = stod(parts[1]);
+                std::cout << "NetCDF writing index is: " << data.netCDFWriteIndex << std::endl;
+            }
+
+
+
             else if (parts[0] == "time_limit")
             {
                 data.realTimeLimit = stol(parts[1]);

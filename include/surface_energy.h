@@ -69,6 +69,7 @@ namespace biorsurfaces
         // For Hs and obstacle terms, this also does nothing -- the metric is
         // specially constructed elsewhere.
         virtual void AddMetricTerm(std::vector<MetricTerm*> &terms) {}
+        virtual double delaValue(){return 0.0;};
     protected:
         MeshPtr mesh = 0;
         GeomPtr geom = 0;

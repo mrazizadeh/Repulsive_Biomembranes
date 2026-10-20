@@ -94,8 +94,6 @@ namespace biorsurfaces
         bool exitWhenDone;
         double totalObstacleVolume;
         bool ADE = false;
-        std::vector<float> helfrichEnergyHistory; // Store Helfrich energy values
-        std::vector<float> iterationHistory;         // Store iteration numbers
     private:
         int implicitCount = 0;
         GCVertex pickedVertex;
@@ -109,6 +107,5 @@ namespace biorsurfaces
         bool ctrlMouseDown;
         Vector3 initialPickedPosition;
         bool hasPickedVertex;
-
     };
 } // namespace biorsurfaces

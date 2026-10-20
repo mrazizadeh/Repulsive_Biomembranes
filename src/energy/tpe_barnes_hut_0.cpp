@@ -458,7 +458,6 @@ namespace biorsurfaces
             value = weight * Energy( real_alpha, real_betahalf );
         }
         ptoc("TPEnergyBarnesHut0::Value");
-        
         return value;
     } // Value
 

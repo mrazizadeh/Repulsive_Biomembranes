@@ -63,7 +63,6 @@ namespace biorsurfaces
         virtual double GetTheta();
         
         bool use_int = false;
-        
     private:
         mreal alpha = 6.;
         mreal beta  = 12.;

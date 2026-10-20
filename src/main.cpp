@@ -1,10 +1,3 @@
-//Note: Biorsurfaces is a software package for simulation of biological membranes. The majority of the code was derived from the c++ implementation of repulsive surfaces
-//developed by Keenan Crane Lab at Carnegie Mellon. The package can be found at https://github.com/chrisyu-cs/repulsive-surfaces
-//More information can be found at https://www.cs.cmu.edu/~kmcrane/Projects/RepulsiveSurfaces/index.html
-//Main contributions of our project are the changes in customCallback() and addition of Helfrich energy and area difference elasticity terms and their analytical derivatives.
-//Meghdad Razizadeh,St. Jude Children's Research Hospital, 2024
-
-
 #include "main.h"
 #include "main_picking.h"
 #include "geometrycentral/surface/halfedge_mesh.h"
@@ -34,8 +27,11 @@
 #include "energy/helfrich_energy_ADE.h"
 #include "bct_constructors.h"
 #include "remeshing/remeshing.h"
-#include "imgui.h"  // Include ImGui first
-#include "line_search.h"
+#include "iosystem.h"
+#include <netcdf> // Include NetCDF-CXX header
+
+namespace nc = netCDF;
+using namespace netCDF;
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 
@@ -170,10 +166,6 @@ namespace biorsurfaces
 
             psMesh->addVertexScalarQuantity("Area ratios", areaRatio);
         }
-        float currentHelfrichEnergy = flow->energies[1]->Value();
-        helfrichEnergyHistory.push_back(currentHelfrichEnergy);
-        iterationHistory.push_back(numSteps); 
-
         ptoc("MainApp::TakeOptimizationStep");
     }
 
@@ -222,12 +214,11 @@ namespace biorsurfaces
 
     void MainApp::PlotGradients()
     {
-        Eigen::MatrixXd l2Diff, hsGrad, hsGradExact,helfGrad, TPEGrad;
+        Eigen::MatrixXd l2Diff, hsGrad, hsGradExact;
         l2Diff.setZero(mesh->nVertices(), 3);
         hsGrad.setZero(mesh->nVertices(), 3);
         hsGradExact.setZero(mesh->nVertices(), 3);
-        TPEGrad.setZero(mesh->nVertices(), 3);
-        helfGrad.setZero(mesh->nVertices(), 3);
+
         flow->UpdateEnergies();
 
         std::cout << "Assembling L2 differential..." << std::endl;
@@ -236,42 +227,25 @@ namespace biorsurfaces
         long diffTimeEnd = currentTimeMilliseconds();
         std::cout << "Differential took " << (diffTimeEnd - diffTimeStart) << " ms" << std::endl;
 
-        // std::unique_ptr<Hs::HsMetric> hs = flow->GetHsMetric();
+        std::unique_ptr<Hs::HsMetric> hs = flow->GetHsMetric();
 
-        // std::cout << "Inverting \"sparse\" metric..." << std::endl;
-        // long sparseTimeStart = currentTimeMilliseconds();
-        // hs->InvertMetricMat(l2Diff, hsGrad);
-        // long sparseTimeEnd = currentTimeMilliseconds();
-        // std::cout << "Sparse metric took " << (sparseTimeEnd - sparseTimeStart) << " ms" << std::endl;
+        std::cout << "Inverting \"sparse\" metric..." << std::endl;
+        long sparseTimeStart = currentTimeMilliseconds();
+        hs->InvertMetricMat(l2Diff, hsGrad);
+        long sparseTimeEnd = currentTimeMilliseconds();
+        std::cout << "Sparse metric took " << (sparseTimeEnd - sparseTimeStart) << " ms" << std::endl;
 
-        // std::cout << "Inverting dense metric..." << std::endl;
-        // long timeStart = currentTimeMilliseconds();
-        // std::vector<ConstraintPack> empty;
-        // // hs->ProjectGradientExact(l2Diff, hsGradExact, empty);
-        // hsGradExact = hsGrad;
-        // long timeEnd = currentTimeMilliseconds();
-        // std::cout << "Dense metric took " << (timeEnd - timeStart) << " ms" << std::endl;
-
-        std::cout << "Assembling Membrane Energy Gradient" << std::endl;
-        long diffTimeStart1 = currentTimeMilliseconds();
-        biorsurfaces::MainApp::instance->flow->energies[1]->Differential(helfGrad);      
-        long diffTimeEnd1 = currentTimeMilliseconds();
-        std::cout << "Differential took " << (diffTimeEnd1 - diffTimeStart1) << " ms" << std::endl;
-
-        std::cout << "Assembling TPE Gradient" << std::endl;
-        long diffTimeStart2 = currentTimeMilliseconds();
-        biorsurfaces::MainApp::instance->flow->energies[0]->Differential(TPEGrad);      
-        long diffTimeEnd2 = currentTimeMilliseconds();
-        std::cout << "Differential took " << (diffTimeEnd2 - diffTimeStart2) << " ms" << std::endl;
-
-
+        std::cout << "Inverting dense metric..." << std::endl;
+        long timeStart = currentTimeMilliseconds();
+        std::vector<ConstraintPack> empty;
+        // hs->ProjectGradientExact(l2Diff, hsGradExact, empty);
+        hsGradExact = hsGrad;
+        long timeEnd = currentTimeMilliseconds();
+        std::cout << "Dense metric took " << (timeEnd - timeStart) << " ms" << std::endl;
 
         PlotMatrix(l2Diff, psMesh, "L2 differential");
-        // PlotMatrix(hsGrad, psMesh, "Hs sparse gradient");
-        // PlotMatrix(hsGradExact, psMesh, "Hs dense gradient");
-        PlotMatrix(TPEGrad, psMesh, "Tangent Point Energy gradient");
-        PlotMatrix(helfGrad, psMesh, "Membrane Energy gradient");
-
+        PlotMatrix(hsGrad, psMesh, "Hs sparse gradient");
+        PlotMatrix(hsGradExact, psMesh, "Hs dense gradient");
     }
 
     bool MainApp::pickNearbyVertex(GCVertex &out)
@@ -776,23 +750,21 @@ bool uiNormalizeView = false;
 bool remesh = true;
 bool changeTopo = true;
 bool areaRatios = false;
-bool ADE = true;
 bool limitStep = false;
 float maxStep = -1.;
+// float regRV = 0.8;
 float regMC = 1.2;
+// float regWRV = 1e7;
 float regWMC = 1e7;
 float regWW = 5000;
 float changeStep = 0.025;
 float regalpha = 2/ geometrycentral::PI;
+// float regCons = biorsurfaces::MainApp::instance->flow->schurConstraints[2].constraint->getTargetValue();
+// float regConsVol = 1.0;
+// float regConsArea = biorsurfaces::MainApp::instance->flow->schurConstraints[1].constraint->getTargetValue();;
 float regCons = 1.05;
 float regConsArea = 0.75;
 int partIndex = 4475;
-
-enum class ModelType {
-    BC,
-    ADE
-};
-ModelType currentModel = ModelType::ADE;
 
 void saveScreenshot(uint i)
 {
@@ -833,295 +805,6 @@ void selectFromDropdown(std::string label, const ItemType choices[], size_t nCho
     }
 }
 
-// A user-defined callback, for creating control panels (etc)
-// Use ImGUI commands to build whatever you want here, see
-// https://github.com/ocornut/imgui/blob/master/imgui.h
-
-
-void customCallback()
-{
-    using namespace biorsurfaces;
-    const int INDENT = 10;
-    const int ITEM_WIDTH = 160;
-    ImGui::Text("Flow control");
-    ImGui::BeginGroup();
-    ImGui::Indent(INDENT);
-    ImGui::PushItemWidth(ITEM_WIDTH);
-    ImGui::Checkbox("Run flow", &run);
-    ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-    ImGui::Checkbox("Normalize view", &uiNormalizeView);
-    ImGui::Checkbox("Take screenshots", &takeScreenshots);
-    ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-    if ((takeScreenshots && screenshotNum == 0) || ImGui::Button("Take screenshot", ImVec2{ITEM_WIDTH, 0}))
-    {
-        saveScreenshot(screenshotNum++);
-    }
-
-    ImGui::Checkbox("Write OBJs", &saveOBJs);
-    ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-    if ((saveOBJs && objNum == 0) || ImGui::Button("Write OBJ", ImVec2{ITEM_WIDTH, 0}))
-    {
-        saveOBJ(MainApp::instance->mesh, MainApp::instance->geom, MainApp::instance->geomOrig, objNum++);
-    }
-    ImGui::Checkbox("Log Energy", &MainApp::instance->logEnergy);
-    ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-    ImGui::Checkbox("Topology Change", &MainApp::instance->topoChange);
-    ImGui::Checkbox("Show area ratios", &areaRatios);
-
-    const GradientMethod methods[] = {GradientMethod::HsProjectedIterative,
-                                      GradientMethod::HsProjected,
-                                      GradientMethod::HsExactProjected,
-                                      GradientMethod::H1Projected,
-                                      GradientMethod::L2Unconstrained,
-                                      GradientMethod::L2Projected,
-                                      GradientMethod::AQP,
-                                      GradientMethod::H1_LBFGS,
-                                      GradientMethod::BQN_LBFGS,
-                                      GradientMethod::H2Projected};
-
-    selectFromDropdown("Method", methods, IM_ARRAYSIZE(methods), MainApp::instance->methodChoice);
-
-    ImGui::Checkbox("Dynamic remeshing", &remesh);
-
-    const remeshing::RemeshingMode rModes[] = {remeshing::RemeshingMode::FlipOnly,
-                                               remeshing::RemeshingMode::SmoothOnly,
-                                               remeshing::RemeshingMode::SmoothAndFlip,
-                                               remeshing::RemeshingMode::SmoothFlipAndCollapse};
-
-    const remeshing::SmoothingMode sModes[] = {remeshing::SmoothingMode::Laplacian,
-                                               remeshing::SmoothingMode::Circumcenter};
-
-    const remeshing::FlippingMode fModes[] = {remeshing::FlippingMode::Delaunay,
-                                              remeshing::FlippingMode::Degree};
-
-    selectFromDropdown("Remeshing mode", rModes, IM_ARRAYSIZE(rModes), MainApp::instance->remesher.remeshingMode);
-    selectFromDropdown("Smoothing mode", sModes, IM_ARRAYSIZE(sModes), MainApp::instance->remesher.smoothingMode);
-    selectFromDropdown("Flipping mode", fModes, IM_ARRAYSIZE(fModes), MainApp::instance->remesher.flippingMode);
-
-    ImGui::Checkbox("Curvature adaptive remeshing", &MainApp::instance->remesher.curvatureAdaptive);
-
-    biorsurfaces::MainApp::instance->HandlePicking();
-
-    ImGui::InputInt("Iteration limit", &MainApp::instance->stepLimit);
-    ImGui::InputInt("Real time limit (ms)", &MainApp::instance->realTimeLimit);
-    ImGui::InputInt("Topology Change steps", &MainApp::instance->topoChangeSteps);
-
-    if (uiNormalizeView != MainApp::instance->normalizeView)
-    {
-        biorsurfaces::MainApp::instance->normalizeView = uiNormalizeView;
-        biorsurfaces::MainApp::instance->updateMeshPositions();
-    }
-    ImGui::PopItemWidth();
-
-    ImGui::Checkbox("Limit step size", &limitStep);
-    ImGui::SliderFloat("Max step size", &maxStep, 0.001, 0.1);
-    ImGui::InputFloat("Weight Helfrich", &regWW); // set a float variable
-
-    ImGui::Text("Model Selection");
-    ImGui::BeginGroup();
-    ImGui::Indent(INDENT);
-
-    const char* modelItems[] = { "BC Model", "ADE Model" };
-    int currentModelIndex = static_cast<int>(currentModel);
-    if (ImGui::Combo("Model", &currentModelIndex, modelItems, IM_ARRAYSIZE(modelItems)))
-    {
-        currentModel = static_cast<ModelType>(currentModelIndex);
-        // Reset the model-specific parameters here if needed
-        if (currentModel == ModelType::BC) {
-            ADE = false;
-            regCons = 1.05;
-            regalpha = 400;
-        } else {
-            ADE = true;
-            regalpha = 2/ geometrycentral::PI; 
-            regCons = 1.05;
-        }
-    }
-    ImGui::EndGroup();
-
-    if (ADE)
-    {
-
-      ImGui::InputFloat("alpha or K_ADE", &regalpha); // set a float variable 
-      ImGui::InputFloat("Change step of nu and dela0", &changeStep); // set a float variable
-      biorsurfaces::MainApp::instance->flow->maxStepSize = limitStep ? maxStep : -1.;
-      std::string float_str_dela0 = std::to_string(regCons);
-      std::string float_str_step = std::to_string(changeStep);
-
-      ImGui::Text("dela0: %s ", float_str_dela0.c_str());
-
-      ImGui::BeginGroup();
-      ImGui::Indent(INDENT);
-      std::stringstream ss1, ss2, ss3, ss4;
-
-    // Format the string with a float value
-      ss1 << "Add " << std::fixed << std::setprecision(3) << changeStep << " dela0";
-      ss2 << "Subtract" << std::fixed << std::setprecision(3) << changeStep << " dela0";
-      ss3 << "Add " << std::fixed << std::setprecision(3) << changeStep << " RV";
-      ss4 << "Subtract " << std::fixed << std::setprecision(3) << changeStep << " RV";
-
-    // Get the formatted string
-      std::string formatted_str1 = ss1.str();
-      std::string formatted_str2 = ss2.str();
-      std::string formatted_str3 = ss3.str();
-      std::string formatted_str4 = ss4.str();
-
-      if (ImGui::Button(formatted_str1.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-      {
-          regCons += changeStep;
-          std::cout << "New dela0 is: " << regCons << std::endl;
-          biorsurfaces::MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(regCons, regWW, regalpha);
-      }
-
-      ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-      if (ImGui::Button(formatted_str2.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-      {
-          regCons -= changeStep;
-          std::cout << "New dela0 is: " << regCons << std::endl;
-          biorsurfaces::MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(regCons, regWW,regalpha);
-      }
-      ImGui::EndGroup();
-
-      std::string float_str_rv = std::to_string(regConsArea);
-      ImGui::Text("Reduced Volume: %s", float_str_rv.c_str());
-
-      ImGui::BeginGroup();
-      ImGui::Indent(INDENT);
-
-      if (ImGui::Button(formatted_str3.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-      {
-          regConsArea += changeStep;
-          std::cout << "New Reduced Volume is: " << regConsArea << std::endl;
-          biorsurfaces::MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(regConsArea);
-          biorsurfaces::MainApp::instance->flow->ResetAllConstraints();
-      }
-
-      ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-      if (ImGui::Button(formatted_str4.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-      {
-          regConsArea -= changeStep;
-          std::cout << "New Reduced Volume is: " << regConsArea << std::endl;
-          biorsurfaces::MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(regConsArea);
-          biorsurfaces::MainApp::instance->flow->ResetAllConstraints();
-      }
-      ImGui::EndGroup();
-    } else {
-
-    ImGui::InputFloat("Weight of BC Term", &regalpha); // set a float variable 
-    ImGui::InputFloat("Change step of nu and dela", &changeStep); // set a float variable
-    //Important note: 2*regCons is due to the fact that the non-dimensional delta0 is 2 times larger than what is 
-    //usually used in the literature for bilayer coupled modeling of biomembranes.
-    biorsurfaces::MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(2*regCons, regWW,regalpha/4.0);
-    biorsurfaces::MainApp::instance->flow->maxStepSize = limitStep ? maxStep : -1.;
-    std::string float_str_rmc = std::to_string(regCons);
-    std::string float_str_step = std::to_string(changeStep);
-
-    ImGui::Text("Dela: %s ", float_str_rmc.c_str());
-
-    ImGui::BeginGroup();
-    ImGui::Indent(INDENT);
-    std::stringstream ss1, ss2, ss3, ss4;
-
-    // Format the string with a float value
-    ss1 << "Add " << std::fixed << std::setprecision(3) << changeStep << " Dela";
-    ss2 << "Subtract" << std::fixed << std::setprecision(3) << changeStep << " Dela";
-    ss3 << "Add " << std::fixed << std::setprecision(3) << changeStep << " nu";
-    ss4 << "Subtract " << std::fixed << std::setprecision(3) << changeStep << " nu";
-
-    // Get the formatted string
-    std::string formatted_str1 = ss1.str();
-    std::string formatted_str2 = ss2.str();
-    std::string formatted_str3 = ss3.str();
-    std::string formatted_str4 = ss4.str();
-
-    if (ImGui::Button(formatted_str1.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-    {
-        regCons += changeStep;
-        std::cout << "New Reduced Mean Curvature is: " << regCons << std::endl;
-        biorsurfaces::MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(2*regCons, regWW, regalpha/4.0);
-    }
-
-    ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-    if (ImGui::Button(formatted_str2.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-    {
-        regCons -= changeStep;
-        std::cout << "New Reduced Mean Curvature is: " << regCons << std::endl;
-        biorsurfaces::MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(2*regCons, regWW, regalpha/4.0);
-    }
-    ImGui::EndGroup();
-    std::string float_str_rv = std::to_string(regConsArea);
-    ImGui::Text("Reduced Volume: %s", float_str_rv.c_str());
-    ImGui::BeginGroup();
-    ImGui::Indent(INDENT);
-
-    if (ImGui::Button(formatted_str3.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-    {
-        regConsArea += changeStep;
-        std::cout << "New Reduced Volume is: " << regConsArea << std::endl;
-        biorsurfaces::MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(regConsArea);
-        biorsurfaces::MainApp::instance->flow->ResetAllConstraints();
-    }
-
-    ImGui::SameLine(ITEM_WIDTH, 2 * INDENT);
-    if (ImGui::Button(formatted_str4.c_str(), ImVec2{ITEM_WIDTH, 0}) || run)
-    {
-        regConsArea -= changeStep;
-        std::cout << "New Reduced Volume is: " << regConsArea << std::endl;
-        biorsurfaces::MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(regConsArea);
-        biorsurfaces::MainApp::instance->flow->ResetAllConstraints();
-    }
-    ImGui::EndGroup();
-    }
-
-    ImGui::Text("Single Run");
-
-    if (ImGui::Button("Take 1 step", ImVec2{ITEM_WIDTH, 0}) || run)
-    {
-        MainApp::instance->TakeOptimizationStep(remesh, areaRatios);
-
-        if (takeScreenshots)
-        {
-            saveScreenshot(screenshotNum++);
-        }
-        if (saveOBJs)
-        {
-            saveOBJ(MainApp::instance->mesh, MainApp::instance->geom, MainApp::instance->geomOrig, objNum++);
-        }
-        if ((MainApp::instance->stepLimit > 0 && MainApp::instance->numSteps >= MainApp::instance->stepLimit) ||
-            (MainApp::instance->realTimeLimit > 0 && MainApp::instance->timeSpentSoFar >= MainApp::instance->realTimeLimit))
-        {
-            run = false;
-            if (MainApp::instance->exitWhenDone)
-            {
-                std::exit(0);
-            }
-        }
-    }
-
-
-    // ImGui::Text("Remeshing tests");
-
-    // ImGui::BeginGroup();
-    // ImGui::Indent(INDENT);
-
-    // if (ImGui::Button("Remesh"))
-    // {
-    //     MainApp::instance->remesher.Remesh(5, true);
-    //     MainApp::instance->mesh->compress();
-    //     MainApp::instance->reregisterMesh();
-    // }
-    // ImGui::EndGroup();
-
-    ImGui::Text("Plotting Gradients");
-    ImGui::BeginGroup();
-    ImGui::Indent(INDENT);
-
-    if (ImGui::Button("Plot Gradient"))
-    {
-        MainApp::instance->PlotGradients();
-    }
-    ImGui::EndGroup();
-}
 
 struct MeshAndEnergy
 {
@@ -1474,11 +1157,6 @@ int main(int argc, char **argv)
         theta = args::get(thetaFlag);
     }
 
-    // Initialize polyscope
-    polyscope::init();
-    // Set the callback function
-    polyscope::state::userCallback = customCallback;
-
     // Parse the input file, either as a scene file or as a mesh
     std::string inFile = args::get(inputFilename);
     scene::SceneData data;
@@ -1500,24 +1178,19 @@ int main(int argc, char **argv)
         throw std::runtime_error("Unknown file extension for " + inFile + ".");
     }
 
-    bool useCoulomb = false;
-    if (coulombFlag)
-    {
-        useCoulomb = true;
-        std::cout << "Using Coulomb energy. (Note: Not expected to work well.)" << std::endl;
-    }
 
     MeshAndEnergy m = initTPEOnMesh(data.meshName, data.alpha, data.beta);
 
     EnergyOverride eo = EnergyOverride::TangentPoint;
-    if (useCoulomb)
-    {
-        eo = EnergyOverride::Coulomb;
-    }
-    else if (data.defaultMethod == GradientMethod::Helfrich)
-    {
-        eo = EnergyOverride::Helfrich;
-    }
+    
+    // if (useCoulomb)
+    // {
+    //     eo = EnergyOverride::Coulomb;
+    // }
+    // else if (data.defaultMethod == GradientMethod::Helfrich)
+    // {
+    //     eo = EnergyOverride::Helfrich;
+    // }
 
     SurfaceFlow *flow = setUpFlow(m, theta, data, eo);
     flow->disableNearField = data.disableNearField;
@@ -1566,9 +1239,18 @@ int main(int argc, char **argv)
 
     MainApp::instance->updateMeshPositions();
     MainApp::instance->remesher.curvatureAdaptive = false;
-    float regWW = 5000;
+    double weightH = data.weightHelfrich;
     float changeStep = 0.025;
-    MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(1.1, regWW,1.0);
+    double redArea = data.reducedArea;
+    double redVol = data.reducedVolume;
+    double alpha = data.alphaADE;
+    int writeIndex = data.netCDFWriteIndex;
+
+    MainApp::instance->flow->energies[1]->ResetTargetsHelfrich(redArea, weightH, alpha);
+    MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(redVol);
+    MainApp::instance->flow->ResetAllConstraints();
+    MainApp::instance->flow->ResetAllPotentials();
+
     bool remesh = true;
     bool areaRatios = false;
     uint objNum = 0;
@@ -1585,7 +1267,106 @@ int main(int argc, char **argv)
         std::cerr << "Error opening file" << std::endl;
         return 1;
     }
-    
-    polyscope::show();
+    std::cout << "running for one step..." << std::endl;
+
+
+
+    int numSteps = MainApp::instance->stepLimit;
+    Eigen::Matrix<std::uint32_t, Eigen::Dynamic, 3, Eigen::RowMajor> faces{
+    MainApp::instance->mesh->getFaceVertexMatrix<std::uint32_t>()};
+    auto vertices = gc::EigenMap<double, 3, Eigen::RowMajor>(MainApp::instance->geomOrig->inputVertexPositions);
+    std::cout << vertices << std::endl;
+
+    //Writing NetCDF Trajectory
+    try {
+        nc::NcFile ncFile("mesh_data.nc", nc::NcFile::replace);
+        std::cout << "NetCDF file created successfully." << std::endl;
+
+        const int compression_level = 2;
+        // Define dimensions
+        std::time_t t = std::time(nullptr);
+        std::tm* now = std::localtime(&t);
+        char datetime[20]; // Enough space for the date and time
+        std::strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", now);
+        // Write the current date and time as a metadata attribute
+        ncFile.putAtt("Simulation Time", netCDF::ncChar, 20, datetime);
+        std::string reduced_volume_str = std::to_string(redVol);
+        std::string reduced_area_str   = std::to_string(redArea);
+        std::string weight_helf_str    = std::to_string(weightH);
+        std::string alpha_str          = std::to_string(alpha);
+        std::string write_str          = std::to_string(writeIndex);
+
+        ncFile.putAtt("reduced_volume", nc::ncChar, reduced_volume_str.length(), reduced_volume_str.c_str());
+        ncFile.putAtt("reduced_area",   nc::ncChar, reduced_area_str.length(), reduced_area_str.c_str());
+        ncFile.putAtt("weight_Helfrich",   nc::ncChar, weight_helf_str.length(), weight_helf_str.c_str());
+        ncFile.putAtt("ADE_alpha",   nc::ncChar, alpha_str.length(), alpha_str.c_str());
+        ncFile.putAtt("NetCDF_Step",   nc::ncChar, write_str.length(), write_str.c_str());
+
+        nc::NcDim frameDim  = ncFile.addDim("frame", NC_UNLIMITED);
+        nc::NcDim frameEDim  = ncFile.addDim("frameEnergy", NC_UNLIMITED);
+
+        nc::NcDim vertexDim = ncFile.addDim("vertex", NC_UNLIMITED);
+        nc::NcDim faceDim   = ncFile.addDim("face", NC_UNLIMITED);
+        nc::NcDim secondDim = ncFile.addDim("second", 3);
+        // Create variables for vertices and faces
+        std::vector<nc::NcDim> verticesDims = {frameDim, vertexDim, secondDim};
+        std::vector<nc::NcDim> facesDims = {frameDim, faceDim, secondDim};
+        nc::NcVar verticesVar = ncFile.addVar("vertices", nc::ncDouble, verticesDims);
+        nc::NcVar facesVar = ncFile.addVar("faces", nc::ncUint, facesDims);
+        nc::NcVar helfEnergyVar = ncFile.addVar("HelfrichEnergy", nc::ncDouble, {frameEDim});
+        nc::NcVar tpeEnergyVar = ncFile.addVar("TPEEnergy", nc::ncDouble, {frameEDim});
+        nc::NcVar delaVar   = ncFile.addVar("dela", nc::ncDouble, {frameEDim});
+        nc::NcVar areaVar   = ncFile.addVar("area", nc::ncDouble, {frameEDim});
+        nc::NcVar volumeVar = ncFile.addVar("volume", nc::ncDouble, {frameEDim});
+        nc::NcVar redVolVar = ncFile.addVar("ReducedVolume", nc::ncDouble, {frameEDim});
+        verticesVar.setCompression(true, true,compression_level);
+        facesVar.setCompression(true, true,compression_level);
+        std::size_t idx = 0;
+        std::size_t idxE = 0;
+
+        for (int i=0; i< numSteps;i++){
+            //redVol -= 0.0007;
+            //MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(redVol);
+            //MainApp::instance->flow->ResetAllConstraints();
+            MainApp::instance->TakeOptimizationStep(true, false);
+            if (i % writeIndex==0){
+                Eigen::Matrix<std::uint32_t, Eigen::Dynamic, 3, Eigen::RowMajor> faces{MainApp::instance->mesh->getFaceVertexMatrix<std::uint32_t>()};
+                auto vertices = gc::EigenMap<double, 3, Eigen::RowMajor>(MainApp::instance->geom->inputVertexPositions);
+                verticesVar.putVar({idx, 0, 0}, {1, static_cast<unsigned long>(vertices.rows() ) , secondDim.getSize()}, vertices.data());
+                facesVar.putVar({idx, 0, 0}, {1,  static_cast<unsigned long>( faces.rows()), secondDim.getSize()}, faces.data());
+                idx++;
+            }
+            helfEnergyVar.putVar({idxE}, (MainApp::instance->flow->energies[1]->Value()/weightH));
+            tpeEnergyVar.putVar({idxE}, MainApp::instance->flow->energies[0]->Value());
+            delaVar.putVar({idxE}, MainApp::instance->flow->energies[1]->delaValue());
+            double Area = totalArea(MainApp::instance->geom,MainApp::instance->mesh);
+            double Volume = totalVolume(MainApp::instance->geom,MainApp::instance->mesh);
+            double reducedVolume = Volume/(4/3.0*geometrycentral::PI*pow((Area/4/geometrycentral::PI),(3.0/2.0)));
+            areaVar.putVar({idxE}, Area);
+            volumeVar.putVar({idxE}, Volume);
+            redVolVar.putVar({idxE}, reducedVolume);
+            idxE++;
+            ncFile.sync();//to ensurte the file is written to the disk
+            
+        } 
+
+
+
+    } catch (const nc::exceptions::NcException& e) {
+        std::cerr << "Exception caught: " << e.what() << std::endl;
+        return 1;
+    }
+
+
+
+    //std::shared_ptr<TrajFile> trajfile(new TrajFile);
+    //trajfile->createNewFile("newfile.nc",*MainApp::instance->mesh, *MainApp::instance->geom, NcFile::replace);
+
+
+
+
+
+    saveOBJ(MainApp::instance->mesh, MainApp::instance->geom, MainApp::instance->geomOrig, 1);
+    std::cout << "finished" << std::endl;
     return EXIT_SUCCESS;
 }
