@@ -434,6 +434,15 @@ namespace biorsurfaces
                 data.implicitBarriers.push_back(implData);
             }
 
+
+            else if (parts[0] == "gradual")
+            {
+                data.gradual_rv = true;
+                data.initial_rv = stod(parts[1]);
+                data.final_rv   = stod(parts[2]);
+                data.rv_steps   = stoi(parts[3]);
+            }
+            
             else if (parts[0] == "autotarget_volume")
             {
                 std::cout << "Will ignore volume constraint parameters and auto-compute targets based on obstacle volume." << std::endl;

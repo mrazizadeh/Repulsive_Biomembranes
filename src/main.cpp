@@ -1240,9 +1240,17 @@ int main(int argc, char **argv)
     MainApp::instance->updateMeshPositions();
     MainApp::instance->remesher.curvatureAdaptive = false;
     double weightH = data.weightHelfrich;
-    float changeStep = 0.025;
     double redArea = data.reducedArea;
-    double redVol = data.reducedVolume;
+    double redVol=0.7;
+    double rv_step = 0.001;
+    int rv_step_num = 1000;
+    if (data.gradual_rv){
+        redVol = data.initial_rv;
+        rv_step = (data.final_rv - data.initial_rv)/data.rv_steps;
+        rv_step_num = data.rv_steps;
+    } else {
+        redVol = data.reducedVolume;
+    }
     double alpha = data.alphaADE;
     int writeIndex = data.netCDFWriteIndex;
 
@@ -1275,7 +1283,6 @@ int main(int argc, char **argv)
     Eigen::Matrix<std::uint32_t, Eigen::Dynamic, 3, Eigen::RowMajor> faces{
     MainApp::instance->mesh->getFaceVertexMatrix<std::uint32_t>()};
     auto vertices = gc::EigenMap<double, 3, Eigen::RowMajor>(MainApp::instance->geomOrig->inputVertexPositions);
-    std::cout << vertices << std::endl;
 
     //Writing NetCDF Trajectory
     try {
@@ -1323,11 +1330,14 @@ int main(int argc, char **argv)
         facesVar.setCompression(true, true,compression_level);
         std::size_t idx = 0;
         std::size_t idxE = 0;
+        int idxRV = 0;
 
         for (int i=0; i< numSteps;i++){
             //redVol -= 0.0007;
             //MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(redVol);
             //MainApp::instance->flow->ResetAllConstraints();
+
+
             MainApp::instance->TakeOptimizationStep(true, false);
             if (i % writeIndex==0){
                 Eigen::Matrix<std::uint32_t, Eigen::Dynamic, 3, Eigen::RowMajor> faces{MainApp::instance->mesh->getFaceVertexMatrix<std::uint32_t>()};
@@ -1347,8 +1357,13 @@ int main(int argc, char **argv)
             redVolVar.putVar({idxE}, reducedVolume);
             idxE++;
             ncFile.sync();//to ensurte the file is written to the disk
-            
-        } 
+            if (data.gradual_rv && idxRV < rv_step_num){
+                redVol += rv_step;
+                MainApp::instance->flow->schurConstraints[1].constraint->setTargetValue(redVol);
+                MainApp::instance->flow->ResetAllConstraints();
+                idxRV++;
+            }
+        }
 
 
 

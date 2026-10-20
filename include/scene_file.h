@@ -104,6 +104,10 @@ namespace biorsurfaces
             bool disableNearField = false;
             bool autoComputeVolumeTarget = false;
             double autoVolumeTargetRatio = 1;
+            bool gradual_rv = false;
+            double initial_rv = 0.7;
+            double final_rv = 0.6;
+            int rv_steps = 1000;
         };
 
         template <class Container>
