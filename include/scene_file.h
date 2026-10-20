@@ -102,6 +102,11 @@ namespace biorsurfaces
             std::string performanceLogFile = "performance.csv";
             GradientMethod defaultMethod = GradientMethod::HsProjectedIterative;
             bool disableNearField = false;
+            bool remeshEnabled = true;
+            bool hardExclusion = false;
+            double hardMinRelative = 1e-6;
+            double hardToleranceRelative = 1e-8;
+            double hardConstraintTolerance = 0.001;
             bool repulsionOff = false; // TPE-off patch: scene line "repulsion off"
             bool autoComputeVolumeTarget = false;
             double autoVolumeTargetRatio = 1;

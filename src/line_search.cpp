@@ -1,4 +1,7 @@
 #include "line_search.h"
+#include "hard_exclusion/bridge.h"
+#include <cmath>
+#include <stdexcept>
 #include "matrix_utils.h"
 #include "spatial/bvh_6d.h"
 #include "bct_constructors.h"
@@ -77,6 +80,9 @@ namespace biorsurfaces
     double LineSearch::BacktrackingLineSearch(Eigen::MatrixXd &gradient, double initGuess, double gradDot, bool negativeIsForward)
     {
         double delta = initGuess;
+        if (HardExclusion::Enabled() && maxStep>0) delta=std::min(delta,maxStep);
+        if (HardExclusion::Enabled() && (!std::isfinite(delta) || !std::isfinite(gradDot) || !gradient.allFinite()))
+            throw std::runtime_error("nonfinite_search_direction_or_step");
         SaveCurrentPositions();
 
         // Gather some initial data
@@ -88,13 +94,20 @@ namespace biorsurfaces
 
         if (gradNorm < 1e-10)
         {
+            if(HardExclusion::Enabled()) throw std::runtime_error("tiny_gradient_requires_separate_convergence_review");
             std::cout << "* Gradient is very close to zero" << std::endl;
             return 0;
         }
 
         while (delta > LS_STEP_THRESHOLD)
         {
-            // Take the gradient step
+            // Certify the entire displacement before evaluating a trial energy.
+            if(HardExclusion::Enabled()) {
+                hard_exclusion::Positions before=origPositions;
+                hard_exclusion::Positions proposed=origPositions+(negativeIsForward?-delta:delta)*gradient;
+                delta*=HardExclusion::Limit(before,proposed,"descent");
+                if(delta<=LS_STEP_THRESHOLD) break;
+            }
             double signedStep = (negativeIsForward) ? -delta : delta;
             SetGradientStep(gradient, signedStep);
             
@@ -102,7 +115,7 @@ namespace biorsurfaces
             double decrease = initialEnergy - nextEnergy;
             double targetDecrease = sigma * delta * gradNorm * gradDot;
 
-            if (decrease < targetDecrease)
+            if (decrease < targetDecrease || (HardExclusion::Enabled() && !std::isfinite(nextEnergy)))
             {
                 delta /= 2;
                 numBacktracks++;
@@ -129,6 +142,7 @@ namespace biorsurfaces
             std::cout << "  * Failed to find a non-trivial step after " << numBacktracks << " backtracks" << std::endl;
             // Restore initial positions if step size goes to 0
             RestorePositions();
+            if(HardExclusion::Enabled()) throw std::runtime_error("line_search_stalled_no_accepted_descent");
             return 0;
         }
         else

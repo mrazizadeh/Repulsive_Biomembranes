@@ -1,4 +1,6 @@
 #include "obj_writer.h"
+#include "hard_exclusion/bridge.h"
+#include <iomanip>
 #include <iostream>
 #include <fstream>
 
@@ -10,6 +12,7 @@ namespace biorsurfaces
         using namespace std;
         ofstream outfile;
         outfile.open(output);
+        if(HardExclusion::Enabled()) outfile << std::setprecision(17);
 
         VertexIndices inds = mesh->getVertexIndices();
 

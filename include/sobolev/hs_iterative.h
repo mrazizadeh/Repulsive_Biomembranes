@@ -3,6 +3,8 @@
 #include "sobolev/hs.h"
 #include "bct_matrix_replacement.h"
 #include "metric_term.h"
+#include "hard_exclusion/bridge.h"
+#include <limits>
 
 #include <unsupported/Eigen/IterativeSolvers>
 
@@ -18,6 +20,9 @@ namespace biorsurfaces
                                              Eigen::SparseMatrix<double> &constraintBlock)
         {
             ptic("ProjectUnconstrainedHsIterative");
+            if(HardExclusion::Enabled() && !gradient.allFinite())
+                HardExclusion::RecordLinearSolve(int(Eigen::NumericalIssue),0,
+                    std::numeric_limits<double>::quiet_NaN(),1e-4,false,"rhs");
             
             BCTPtr bct = hs.getBlockClusterTree();
 
@@ -27,13 +32,18 @@ namespace biorsurfaces
 
             // Eigen::ConjugateGradient<BCTMatrixReplacement, Eigen::Lower | Eigen::Upper, SparseHsPreconditioner> cg;
             Eigen::GMRES<BCTMatrixReplacement, SparseHsPreconditioner> cg;
+            cg.setTolerance(1e-4); // preserve the inherited solver tolerance
             cg.compute(fracL);
+            if(HardExclusion::Enabled() && cg.info()!=Eigen::Success)
+                HardExclusion::RecordLinearSolve(int(cg.info()),0,
+                    std::numeric_limits<double>::quiet_NaN(),cg.tolerance(),false,"setup");
             
             Eigen::VectorXd temp;
             temp.setZero(gradient.rows());
-            cg.setTolerance(1e-4);
             temp = cg.solveWithGuess(gradient, temp);
-            std::cout << "  * GMRES converged in " << cg.iterations() << " iterations, final residual = " << cg.error() << std::endl;
+            std::cout << "  * GMRES finished: Eigen status = " << int(cg.info()) << ", iterations = " << cg.iterations()
+                      << ", reported residual = " << cg.error() << ", tolerance = " << cg.tolerance() << std::endl;
+            HardExclusion::RecordLinearSolve(int(cg.info()),cg.iterations(),cg.error(),cg.tolerance(),temp.allFinite(),"solve");
 
             dest = temp;
             

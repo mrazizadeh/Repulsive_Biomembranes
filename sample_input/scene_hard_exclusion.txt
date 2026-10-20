@@ -1,0 +1,21 @@
+repel_mesh oblate.obj 6 12
+######### Model parameters ############
+reduced_volume 0.967566
+reduced_area 1.05
+helfrich_weight 5000
+alpha_ade 1000
+write_index 1
+#######################################
+constrain barycenter
+constrain volume 1
+constrain reduced_volume 1
+minimize helfrichADE 1
+iteration_limit 20
+method hs
+###### Geometric exclusion (Tight-Inclusion CCD), fixed connectivity ####
+remesh off
+hard_exclusion on
+repulsion off
+hard_min_separation_relative 1e-06
+hard_ccd_tolerance_relative 1e-8
+hard_constraint_tolerance 0.001

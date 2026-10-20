@@ -1,4 +1,5 @@
 #include "sobolev/hs.h"
+#include "hard_exclusion/bridge.h"
 #include "helpers.h"
 #include "spatial/convolution.h"
 #include "spatial/convolution_kernel.h"
@@ -360,7 +361,14 @@ namespace biorsurfaces
         {
             for (SimpleProjectorConstraint *spc : simpleConstraints)
             {
-                spc->ProjectConstraint(mesh, geom);
+                if(HardExclusion::Enabled()) {
+                    auto before=HardExclusion::Capture(mesh,geom);
+                    spc->ProjectConstraint(mesh,geom); // generate candidate only
+                    auto proposed=HardExclusion::Capture(mesh,geom);
+                    HardExclusion::Restore(mesh,geom,before);
+                    const double fraction=HardExclusion::Limit(before,proposed,"barycenter_projection");
+                    HardExclusion::Restore(mesh,geom,before+fraction*(proposed-before));
+                } else spc->ProjectConstraint(mesh, geom);
             }
         }
 

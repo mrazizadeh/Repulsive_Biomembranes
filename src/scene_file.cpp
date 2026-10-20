@@ -1,4 +1,5 @@
 #include "scene_file.h"
+#include <cmath>
 
 #include <fstream>
 
@@ -290,6 +291,23 @@ namespace biorsurfaces
             else if (parts[0] == "disable_near_field")
             {
                 data.disableNearField = true;
+            }
+            else if (parts[0] == "remesh" || parts[0] == "hard_exclusion")
+            {
+                if (parts.size()!=2 || (parts[1]!="on" && parts[1]!="off"))
+                    throw std::runtime_error(parts[0]+" requires exactly on or off");
+                if(parts[0]=="remesh") data.remeshEnabled=(parts[1]=="on");
+                else data.hardExclusion=(parts[1]=="on");
+            }
+            else if (parts[0] == "hard_min_separation_relative" || parts[0] == "hard_ccd_tolerance_relative" || parts[0] == "hard_constraint_tolerance")
+            {
+                if(parts.size()!=2) throw std::runtime_error(parts[0]+" requires one number");
+                size_t used=0; double v=std::stod(parts[1],&used);
+                if(used!=parts[1].size() || !std::isfinite(v) || v<=0)
+                    throw std::runtime_error("Invalid value for "+parts[0]);
+                if(parts[0]=="hard_min_separation_relative") data.hardMinRelative=v;
+                else if(parts[0]=="hard_ccd_tolerance_relative") data.hardToleranceRelative=v;
+                else data.hardConstraintTolerance=v;
             }
             else if (parts[0] == "repulsion")
             {

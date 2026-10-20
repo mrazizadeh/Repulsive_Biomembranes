@@ -1,6 +1,8 @@
 #pragma once
 
 #include "hs.h"
+#include "hard_exclusion/bridge.h"
+#include "hard_exclusion/constraint_projection.h"
 
 namespace biorsurfaces
 {
@@ -65,10 +67,9 @@ namespace biorsurfaces
             ptic("ProjectSchurConstraints");
             
             size_t nRows = hs.Schur<Inverse>().M_A.rows();
-            int nIters = 0;
             Eigen::VectorXd vals(nRows);
 
-            while (nIters < newtonSteps)
+            const auto correctOnce = [&](int nIters)
             {
                 vals.setZero();
                 int curRow = 0;
@@ -81,12 +82,10 @@ namespace biorsurfaces
 
                 double constraintError = vals.lpNorm<Eigen::Infinity>();
                 std::cout << "  * Constraint error after " << nIters << " iterations = " << constraintError << std::endl;
-                if (nIters > 0 && constraintError < 1e-2)
+                if (!HardExclusion::Enabled() && nIters > 0 && constraintError < 1e-2)
                 {
-                    break;
+                    return false;
                 }
-
-                nIters++;
 
                 // In this case we want the block of the inverse that multiplies the bottom block
                 // -A^{-1} B (M/A)^{-1}, where B = C^T
@@ -94,7 +93,16 @@ namespace biorsurfaces
                 MatrixUtils::SolveDenseSystem(hs.Schur<Inverse>().M_A, vals, vals);
                 // Apply cached A{^-1} C^T
                 Eigen::VectorXd correction = hs.Schur<Inverse>().Ainv_CT * vals;
+                if(HardExclusion::Enabled() && !correction.allFinite())
+                    throw std::runtime_error("nonfinite_constraint_correction");
 
+                // Independently guard Newton correction; guarding descent alone is insufficient.
+                if(HardExclusion::Enabled()) {
+                    auto before=HardExclusion::Capture(hs.mesh,hs.geom);
+                    hard_exclusion::Positions proposed=before;
+                    for(int i=0;i<proposed.rows();++i) for(int j=0;j<3;++j) proposed(i,j)+=correction(3*i+j);
+                    correction*=HardExclusion::Limit(before,proposed,"constraint_correction");
+                }
                 // Apply the correction to the vertex positions
                 VertexIndices verts = hs.mesh->getVertexIndices();
                 for (GCVertex v : hs.mesh->vertices())
@@ -103,6 +111,7 @@ namespace biorsurfaces
                     Vector3 vertCorr{correction(base), correction(base + 1), correction(base + 2)};
                     hs.geom->inputVertexPositions[v] += vertCorr;
                 }
+                if(HardExclusion::Enabled()) hs.geom->refreshQuantities();
 
                 vals.setZero();
                 curRow = 0;
@@ -114,6 +123,23 @@ namespace biorsurfaces
                 }
                 double corrError = vals.lpNorm<Eigen::Infinity>();
                 std::cout << "  * Corrected error " << constraintError << " -> " << corrError << std::endl;
+                return true;
+            };
+            if(HardExclusion::Enabled()) {
+                // The legacy caller requests only one correction. Repeat the
+                // same cached Schur correction for guarded runs until the
+                // declared geometric A/V tolerance holds, or stop explicitly.
+                // No relaxation of the full-step tolerance or energy gate.
+                const int corrections=HardExclusion::CorrectConstraintsToTolerance(
+                    [&]() { return HardExclusion::ConstraintRelativeError(hs.mesh,hs.geom); },
+                    [&](int i) { correctOnce(i); },
+                    HardExclusion::ConstraintRelativeTolerance());
+                std::cout << "  * Relative A/V error after " << corrections << " guarded corrections = "
+                          << HardExclusion::ConstraintRelativeError(hs.mesh,hs.geom) << std::endl;
+            } else {
+                // Preserve the original count and absolute stopping criterion
+                // exactly when the independent guard is disabled.
+                for(int i=0;i<newtonSteps;++i) if(!correctOnce(i)) break;
             }
             
             ptoc("ProjectSchurConstraints");

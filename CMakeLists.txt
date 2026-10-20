@@ -132,6 +132,7 @@ set(SRCS
   src/fractional_laplacian.cpp
   src/interaction_data.cpp
   src/line_search.cpp
+  src/hard_exclusion_bridge.cpp
   src/profiler.cpp
   src/matrix_utils.cpp
   src/metric_term.cpp
@@ -200,3 +201,32 @@ if(TBB_FOUND)
 endif()
 
 target_include_directories(biorsurfaces PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/libgmultigrid/include")
+
+# Independent, pinned CCD kernel. No network downloads at build time.
+# third_party/ and tests/ sit at the repository root.
+set(HARD_PACKAGE "${CMAKE_CURRENT_SOURCE_DIR}")
+set(CCD_SRC "${HARD_PACKAGE}/third_party/tight-inclusion/src/tight_inclusion")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/hard_config/tight_inclusion")
+file(WRITE "${CMAKE_BINARY_DIR}/hard_config/tight_inclusion/config.hpp" "#pragma once\n#define TIGHT_INCLUSION_WITH_DOUBLE_PRECISION\n")
+add_library(hard_exclusion_core STATIC src/hard_exclusion_guard.cpp
+  "${CCD_SRC}/ccd.cpp" "${CCD_SRC}/interval.cpp" "${CCD_SRC}/interval_root_finder.cpp"
+  "${CCD_SRC}/avx.cpp" "${CCD_SRC}/logger.cpp")
+set_target_properties(hard_exclusion_core PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_compile_definitions(hard_exclusion_core PRIVATE FMT_HEADER_ONLY)
+target_compile_options(hard_exclusion_core PRIVATE -ffp-contract=off -fno-fast-math -Wno-error)
+target_include_directories(hard_exclusion_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${GC_EIGEN_LOCATION}"
+  PRIVATE "${HARD_PACKAGE}/third_party/tight-inclusion/src" "${HARD_PACKAGE}/third_party/spdlog-1.11.0/include"
+  "${CMAKE_BINARY_DIR}/hard_config")
+target_link_libraries(biorsurfaces hard_exclusion_core)
+target_compile_options(biorsurfaces PRIVATE -ffp-contract=off -fno-fast-math)
+add_executable(hard_guard_test "${HARD_PACKAGE}/tests/test_guard.cpp")
+set_target_properties(hard_guard_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_compile_options(hard_guard_test PRIVATE -ffp-contract=off -fno-fast-math)
+target_link_libraries(hard_guard_test hard_exclusion_core pthread)
+add_executable(hard_gmres_test "${HARD_PACKAGE}/tests/test_gmres_status.cpp")
+target_include_directories(hard_gmres_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${GC_EIGEN_LOCATION}")
+target_compile_options(hard_gmres_test PRIVATE -ffp-contract=off -fno-fast-math)
+target_link_libraries(hard_gmres_test OpenMP::OpenMP_CXX)
+add_executable(hard_constraint_test "${HARD_PACKAGE}/tests/test_constraint_projection.cpp")
+target_include_directories(hard_constraint_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_compile_options(hard_constraint_test PRIVATE -ffp-contract=off -fno-fast-math)

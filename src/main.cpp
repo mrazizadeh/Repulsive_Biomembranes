@@ -1,3 +1,4 @@
+#include "hard_exclusion/bridge.h"
 #include "main.h"
 #include "main_picking.h"
 #include "geometrycentral/surface/halfedge_mesh.h"
@@ -1179,6 +1180,8 @@ int main(int argc, char **argv)
     }
 
 
+    try { HardExclusion::ValidateScene(data); }
+    catch(const std::exception& e) { std::cerr << e.what() << std::endl; return 2; }
     MeshAndEnergy m = initTPEOnMesh(data.meshName, data.alpha, data.beta);
 
     EnergyOverride eo = EnergyOverride::TangentPoint;
@@ -1275,7 +1278,9 @@ int main(int argc, char **argv)
     MainApp::instance->flow->ResetAllConstraints();
     MainApp::instance->flow->ResetAllPotentials();
 
-    bool remesh = true;
+    try { HardExclusion::Initialize(data,MainApp::instance->mesh,MainApp::instance->geom); }
+    catch(const std::exception& e) { std::cerr << e.what() << std::endl; return 2; }
+    bool remesh = data.remeshEnabled;
     bool areaRatios = false;
     uint objNum = 0;
     uint screenshotNum = 0;
@@ -1327,6 +1332,9 @@ int main(int argc, char **argv)
         std::string repulsion_str = data.repulsionOff ? "off" : "on";
         ncFile.putAtt("repulsion",   nc::ncChar, repulsion_str.length(), repulsion_str.c_str());
 
+        std::string guard_str=data.hardExclusion?"on":"off", remesh_str=data.remeshEnabled?"on":"off";
+        ncFile.putAtt("hard_exclusion",nc::ncChar,guard_str.length(),guard_str.c_str());
+        ncFile.putAtt("remesh",nc::ncChar,remesh_str.length(),remesh_str.c_str());
         nc::NcDim frameDim  = ncFile.addDim("frame", NC_UNLIMITED);
         nc::NcDim frameEDim  = ncFile.addDim("frameEnergy", NC_UNLIMITED);
 
@@ -1363,7 +1371,23 @@ int main(int argc, char **argv)
             //MainApp::instance->flow->ResetAllConstraints();
 
 
-            MainApp::instance->TakeOptimizationStep(true, false);
+            try {
+                if(HardExclusion::Enabled()) {
+                    flow->UpdateEnergies();
+                    HardExclusion::BeginStep(i+1,m.mesh,m.geom,GetEnergyValue(flow->energies));
+                }
+                MainApp::instance->TakeOptimizationStep(remesh, false);
+                if(HardExclusion::Enabled()) {
+                    flow->UpdateEnergies(); // rebuild all caches after projections
+                    HardExclusion::AcceptStep(m.mesh,m.geom,GetEnergyValue(flow->energies));
+                }
+            } catch(const std::exception& e) {
+                HardExclusion::FailStep(m.mesh,m.geom,e.what());
+                flow->UpdateEnergies(); // restored geometry and energy caches
+                ncFile.sync();
+                std::cerr << "HARD EXCLUSION STOP: " << e.what() << std::endl;
+                return 3; // rejected steps are NOT written as scientific frames
+            }
             if (i % writeIndex==0){
                 Eigen::Matrix<std::uint32_t, Eigen::Dynamic, 3, Eigen::RowMajor> faces{MainApp::instance->mesh->getFaceVertexMatrix<std::uint32_t>()};
                 auto vertices = gc::EigenMap<double, 3, Eigen::RowMajor>(MainApp::instance->geom->inputVertexPositions);
@@ -1416,6 +1440,7 @@ int main(int argc, char **argv)
 
 
     saveOBJ(MainApp::instance->mesh, MainApp::instance->geom, MainApp::instance->geomOrig, 1);
+    HardExclusion::Finish();
     std::cout << "finished" << std::endl;
     return EXIT_SUCCESS;
 }
