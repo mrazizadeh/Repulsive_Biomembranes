@@ -1,4 +1,4 @@
-# Repulsive Biomembranes - HPC version
+# Repulsive Biomembranes - HPC version with TPE off
 
 This branch contains the batch (non-GUI) version of Repulsive Biomembranes that runs on HPC clusters. The source is the source that is inside the Singularity image `biorsurfaces.sif` used for the production simulations. The `main` branch contains the interactive GUI version.
 
@@ -119,3 +119,25 @@ Step indexing: the loop counter `i` starts at 0, and each record is written afte
 ## License and acknowledgments
 
 MIT license (`LICENSE`). This project is derived from [Repulsive Surfaces](https://github.com/chrisyu-cs/repulsive-surfaces) (`LICENSE_Repulsive_Surfaces`) and [Mem3DG](https://github.com/RangamaniLabUCSD/Mem3DG) (`LICENSE_MEM3DG.txt`). Vendored libraries in `deps/` keep their own licenses.
+
+## TPE-off version (this branch)
+
+This branch adds one scene line to the HPC version:
+
+```text
+repulsion off
+```
+
+With `repulsion off`, the tangent-point energy (TPE) is removed from the objective and from the gradient. The TPE object stays in the flow, so the Hs (fractional Sobolev) metric is built exactly as with the repulsion on. TPE off therefore means no TPE energy and no TPE force. It does not remove the proximity terms of the Hs metric. `repulsion on` (or no `repulsion` line) gives the original behavior.
+
+The option needs the Barnes-Hut TPE (`--theta` greater than 0, default 0.3). At startup the program prints `*** REPULSION OFF ... ***`.
+
+Output changes with `repulsion off`:
+
+- `TPEEnergy` is 0, because the TPE is not in the objective.
+- `TPEEnergyDiagnostic` contains the TPE value of the current shape. It is a proximity diagnostic only.
+- The NetCDF attribute `repulsion` is `on` or `off`.
+
+Example: `sample_input/sceneADE_repulsion_off.txt`.
+
+Changed files relative to `hpc-version`: `include/energy/tpe_barnes_hut_0.h`, `src/energy/tpe_barnes_hut_0.cpp`, `include/scene_file.h`, `src/scene_file.cpp`, `src/main.cpp`. This source was compiled inside the May 2024 image with `-DGC_EIGEN_LOCATION` set to the Eigen copy in the image (route A above).

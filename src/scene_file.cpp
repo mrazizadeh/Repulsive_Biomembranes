@@ -291,6 +291,25 @@ namespace biorsurfaces
             {
                 data.disableNearField = true;
             }
+            else if (parts[0] == "repulsion")
+            {
+                // TPE-off patch: "repulsion off" removes the tangent-point energy from
+                // the objective and gradient; "repulsion on" is the original behaviour.
+                if (parts.size() >= 2 && parts[1] == "off")
+                {
+                    data.repulsionOff = true;
+                    cout << "  * Tangent-point repulsion energy will be OFF" << endl;
+                }
+                else if (parts.size() >= 2 && parts[1] == "on")
+                {
+                    data.repulsionOff = false;
+                    cout << "  * Tangent-point repulsion energy ON" << endl;
+                }
+                else
+                {
+                    throw std::runtime_error("Scene line 'repulsion' must be 'repulsion on' or 'repulsion off'.");
+                }
+            }
             else if (parts[0] == "constrain")
             {
                 ConstraintData consData{getConstraintType(parts[1]), 1, 0, 0};

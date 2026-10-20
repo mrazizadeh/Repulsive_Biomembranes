@@ -1,0 +1,15 @@
+repel_mesh oblate.obj 6 12
+######### Same model as sceneADE.txt, with the tangent-point repulsion removed ############
+reduced_volume 0.9
+reduced_area 1.05
+helfrich_weight 5000
+alpha_ade 1000
+write_index 10
+###########################################################################
+constrain barycenter
+constrain volume 1
+constrain reduced_volume 1
+minimize helfrichADE 1
+iteration_limit 1000
+###### No tangent-point energy or force; the Hs metric is unchanged ####
+repulsion off

@@ -1195,6 +1195,22 @@ int main(int argc, char **argv)
     SurfaceFlow *flow = setUpFlow(m, theta, data, eo);
     flow->disableNearField = data.disableNearField;
 
+    // TPE-off patch: remove the repulsion from the objective and gradient only.
+    // The TPE object stays energies[0], so its BVH, exponents and weight still
+    // build the Hs metric exactly as in the original code.
+    TPEnergyBarnesHut0 *tpeOff = 0;
+    if (data.repulsionOff)
+    {
+        tpeOff = dynamic_cast<TPEnergyBarnesHut0 *>(flow->energies[0]);
+        if (!tpeOff)
+        {
+            std::cerr << "repulsion off needs the Barnes-Hut tangent-point energy (theta > 0)." << std::endl;
+            return EXIT_FAILURE;
+        }
+        tpeOff->energyEnabled = false;
+        std::cout << "*** REPULSION OFF: tangent-point energy removed from objective and gradient; Hs metric unchanged ***" << std::endl;
+    }
+
     MainApp::instance = new MainApp(m.mesh, m.geom, flow, m.psMesh, m.meshName);
     MainApp::instance->bh_theta = theta;
     MainApp::instance->kernel = m.kernel;
@@ -1308,6 +1324,8 @@ int main(int argc, char **argv)
         ncFile.putAtt("weight_Helfrich",   nc::ncChar, weight_helf_str.length(), weight_helf_str.c_str());
         ncFile.putAtt("ADE_alpha",   nc::ncChar, alpha_str.length(), alpha_str.c_str());
         ncFile.putAtt("NetCDF_Step",   nc::ncChar, write_str.length(), write_str.c_str());
+        std::string repulsion_str = data.repulsionOff ? "off" : "on";
+        ncFile.putAtt("repulsion",   nc::ncChar, repulsion_str.length(), repulsion_str.c_str());
 
         nc::NcDim frameDim  = ncFile.addDim("frame", NC_UNLIMITED);
         nc::NcDim frameEDim  = ncFile.addDim("frameEnergy", NC_UNLIMITED);
@@ -1326,6 +1344,13 @@ int main(int argc, char **argv)
         nc::NcVar areaVar   = ncFile.addVar("area", nc::ncDouble, {frameEDim});
         nc::NcVar volumeVar = ncFile.addVar("volume", nc::ncDouble, {frameEDim});
         nc::NcVar redVolVar = ncFile.addVar("ReducedVolume", nc::ncDouble, {frameEDim});
+        // TPE-off patch: with the repulsion off, TPEEnergy is 0 (the energy used);
+        // the unused TPE value is kept here as a proximity diagnostic.
+        nc::NcVar tpeDiagVar;
+        if (tpeOff)
+        {
+            tpeDiagVar = ncFile.addVar("TPEEnergyDiagnostic", nc::ncDouble, {frameEDim});
+        }
         verticesVar.setCompression(true, true,compression_level);
         facesVar.setCompression(true, true,compression_level);
         std::size_t idx = 0;
@@ -1355,6 +1380,15 @@ int main(int argc, char **argv)
             areaVar.putVar({idxE}, Area);
             volumeVar.putVar({idxE}, Volume);
             redVolVar.putVar({idxE}, reducedVolume);
+            if (tpeOff)
+            {
+                // Rebuild the BVH for the remeshed surface; the next step rebuilds it
+                // again, so this does not change the trajectory.
+                tpeOff->Update();
+                double tpeDiag = tpeOff->RawValue();
+                tpeDiagVar.putVar({idxE}, tpeDiag);
+                std::cout << "  TPE diagnostic (not in objective) = " << tpeDiag << std::endl;
+            }
             idxE++;
             ncFile.sync();//to ensurte the file is written to the disk
             if (data.gradual_rv && idxRV < rv_step_num){

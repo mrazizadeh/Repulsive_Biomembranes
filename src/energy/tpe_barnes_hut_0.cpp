@@ -441,6 +441,16 @@ namespace biorsurfaces
     
     double TPEnergyBarnesHut0::Value()
     {
+        // TPE-off patch: no repulsion term in the objective.
+        if( !energyEnabled )
+        {
+            return 0.;
+        }
+        return RawValue();
+    } // Value
+
+    double TPEnergyBarnesHut0::RawValue()
+    {
         ptic("TPEnergyBarnesHut0::Value");
         
         mreal value = 0.;
@@ -459,10 +469,15 @@ namespace biorsurfaces
         }
         ptoc("TPEnergyBarnesHut0::Value");
         return value;
-    } // Value
+    } // RawValue
 
     void TPEnergyBarnesHut0::Differential( Eigen::MatrixXd &output )
     {
+        // TPE-off patch: add no repulsion force to the gradient.
+        if( !energyEnabled )
+        {
+            return;
+        }
         ptic("TPEnergyBarnesHut0::Differential");
         if( bvh->near_dim != 7)
         {

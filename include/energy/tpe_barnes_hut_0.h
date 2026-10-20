@@ -61,7 +61,16 @@ namespace biorsurfaces
         // Return the separation parameter for this energy.
         // Return 0 if this energy doesn't do hierarchical approximation.
         virtual double GetTheta();
-        
+
+        // TPE-off patch: the energy value, ignoring energyEnabled. Used only as a
+        // proximity diagnostic when the repulsion is switched off.
+        double RawValue();
+
+        // TPE-off patch: when false, Value() returns 0 and Differential() adds nothing,
+        // so the repulsion leaves the objective and the gradient. GetWeight(), GetBVH()
+        // and GetExponents() are unchanged, so the Hs metric is built exactly as before.
+        bool energyEnabled = true;
+
         bool use_int = false;
     private:
         mreal alpha = 6.;
